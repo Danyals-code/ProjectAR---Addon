@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Minimal threaded TCP server with length-prefixed frames."""
 
+import json
 import queue
 import socket
 import struct
@@ -12,6 +13,8 @@ KIND_MESH = 2
 # If a phone falls this far behind, drop its backlog and resync it.
 MAX_PENDING_BYTES = 64 * 1024 * 1024
 SEND_TIMEOUT = 15.0
+# The app only sends small JSON messages. Anything bigger is a broken client.
+MAX_INCOMING_BYTES = 1024 * 1024
 
 
 def encode_frame(kind, payload):
@@ -19,9 +22,10 @@ def encode_frame(kind, payload):
 
 
 class Client:
-    def __init__(self, conn, address):
+    def __init__(self, conn, address, inbox):
         self._conn = conn
         self.address = address
+        self._inbox = inbox
         self._queue = queue.Queue()
         self._lock = threading.Lock()
         self._pending = 0
@@ -31,6 +35,11 @@ class Client:
         threading.Thread(
             target=self._send_loop,
             name=f"ViewAR client {address[0]}",
+            daemon=True,
+        ).start()
+        threading.Thread(
+            target=self._receive_loop,
+            name=f"ViewAR receive {address[0]}",
             daemon=True,
         ).start()
 
@@ -76,6 +85,39 @@ class Client:
         finally:
             self.close()
 
+    def _receive_loop(self):
+        """Reads messages from the app and queues them for the main thread.
+        Only JSON frames with a "type" are accepted."""
+        buffer = b""
+        try:
+            while self.alive:
+                try:
+                    chunk = self._conn.recv(65536)
+                except socket.timeout:
+                    continue
+                if not chunk:
+                    break  # the app closed the connection
+                buffer += chunk
+                while len(buffer) >= 5:
+                    length, kind = struct.unpack(">IB", buffer[:5])
+                    if length > MAX_INCOMING_BYTES:
+                        return
+                    if len(buffer) < 5 + length:
+                        break
+                    payload, buffer = buffer[5 : 5 + length], buffer[5 + length :]
+                    if kind != KIND_JSON:
+                        continue
+                    try:
+                        message = json.loads(payload.decode("utf-8"))
+                    except ValueError:  # includes UnicodeDecodeError
+                        continue
+                    if isinstance(message, dict) and isinstance(message.get("type"), str):
+                        self._inbox.put((self, message))
+        except OSError:
+            pass
+        finally:
+            self.close()
+
     def close(self):
         self.alive = False
         try:
@@ -93,6 +135,8 @@ class Server:
         self.port = port
         self._clients = []
         self._lock = threading.Lock()
+        # (client, message) pairs from the app, handled on Blender's main thread.
+        self.inbox = queue.Queue()
         self._sock = None
         self._thread = None
         self._running = False
@@ -128,12 +172,22 @@ class Server:
                 if not self._running:
                     conn.close()
                     break
-                self._clients.append(Client(conn, address))
+                self._clients.append(Client(conn, address, self.inbox))
 
     def live_clients(self):
         with self._lock:
             self._clients = [c for c in self._clients if c.alive]
             return list(self._clients)
+
+    def take_messages(self, limit=100):
+        """Messages received since the last call, oldest first."""
+        out = []
+        while len(out) < limit:
+            try:
+                out.append(self.inbox.get_nowait())
+            except queue.Empty:
+                break
+        return out
 
     def disconnect(self, label):
         for client in self.live_clients():

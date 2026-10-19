@@ -10,9 +10,12 @@ import bpy
 import numpy as np
 from mathutils import Matrix
 
+from . import review
 from .server import KIND_JSON, KIND_MESH, encode_frame
 
 PROTOCOL_VERSION = 1
+# Optional extras listed in "hello". The app only uses what's listed here.
+FEATURES = ["setMaterial", "variants", "notes", "roomScan"]
 SUPPORTED_TYPES = {"MESH", "CURVE", "SURFACE", "META", "FONT"}
 GEOMETRY_MIN_INTERVAL = 0.1  # max 10 mesh resends per second per object
 PING_INTERVAL = 2.0
@@ -235,6 +238,8 @@ class SceneStreamer:
         self._last_ping = 0.0
         self._budget = None
         self._sync_key = None
+        self._variants_key = None
+        self._notes_key = None
         self.skipped = set()
         self.clients = []
         self.object_count = 0
@@ -295,13 +300,25 @@ class SceneStreamer:
         now = time.monotonic()
         clients = self.server.live_clients()
         self.clients = clients
-        if not clients:
+        messages = self.server.take_messages()
+        if not clients and not messages:
             return
 
         opts = self._options()
         context = bpy.context
         scene = context.scene
         view_layer = context.view_layer or scene.view_layers[0]
+
+        space = AXIS
+        if opts.origin == "CURSOR":
+            space = AXIS @ scene.cursor.matrix.inverted_safe()
+        if space != self._space:
+            self._space = space
+            self._world_cache.clear()
+
+        self._handle_messages(messages, scene, view_layer)
+        if not clients:
+            return
         depsgraph = context.evaluated_depsgraph_get()
 
         # "hello" carries the scene name and unit scale, so resend it on change.
@@ -327,23 +344,24 @@ class SceneStreamer:
                     client.send(frame)
             return
 
-        space = AXIS
-        if opts.origin == "CURSOR":
-            space = AXIS @ scene.cursor.matrix.inverted_safe()
-        if space != self._space:
-            self._space = space
-            self._world_cache.clear()
-
         # While paused, new devices still get the current scene, but state is
         # left alone so existing devices catch up on everything after resuming.
         commit = not opts.paused
         accept = _scope_filter(view_layer, opts)
+        variants = review.variant_sets(scene, view_layer)
+        notes = review.notes(scene, space)
+        # Every option of a variant set is streamed, hidden or not, so the
+        # app can switch between them instantly.
+        variant_objects = review.variant_object_names(variants)
         objects = {
             o.name_full: o
             for o in scene.objects
             if o.type in SUPPORTED_TYPES
-            and o.visible_get(view_layer=view_layer)
             and accept(o)
+            and (
+                o.visible_get(view_layer=view_layer)
+                or (o.name_full in variant_objects and not o.hide_viewport)
+            )
         }
         instances = self._gather_instances(
             depsgraph, accept, opts, now, full=bool(fresh), commit=commit
@@ -389,13 +407,31 @@ class SceneStreamer:
             if changed:
                 frames.append(_json_frame({"type": "transforms", "objects": changed}))
 
+        variants_key = json.dumps(variants, sort_keys=True)
+        if variants_key != self._variants_key:
+            self._variants_key = variants_key
+            frames.append(_json_frame({"type": "variants", "sets": variants}))
+        notes_key = json.dumps(notes, sort_keys=True)
+        if notes_key != self._notes_key:
+            self._notes_key = notes_key
+            frames.append(_json_frame({"type": "notes", "notes": notes}))
+
         for client in existing:
             for frame in frames:
                 client.send(frame)
         for client in fresh:
             self._full_sync(client, scene, depsgraph, opts, objects, instances, matrices, built)
+            client.send(_json_frame({"type": "variants", "sets": variants}), force=True)
+            client.send(_json_frame({"type": "notes", "notes": notes}), force=True)
 
     # internals
+    def _handle_messages(self, messages, scene, view_layer):
+        for client, message in messages:
+            try:
+                review.handle_message(message, scene, view_layer, self._space)
+            except Exception as exc:  # one bad message shouldn't stop the rest
+                print(f"ViewAR: could not apply {message.get('type')} from {client.label}: {exc}")
+
     def _gather_instances(self, depsgraph, accept, opts, now, full, commit):
         """Collection, particle and Geometry Nodes instances, flattened.
 
@@ -467,7 +503,12 @@ class SceneStreamer:
         return encode_mesh(iid, geometry)
 
     def _object_frame(self, name, obj, depsgraph, opts):
-        geometry = read_geometry(obj.evaluated_get(depsgraph), opts.max_triangles)
+        # Hidden variant options in excluded collections aren't evaluated.
+        try:
+            source = obj.evaluated_get(depsgraph)
+        except (RuntimeError, ReferenceError):
+            source = obj
+        geometry = read_geometry(source, opts.max_triangles)
         self._record(name, geometry)
         return encode_mesh(name, geometry)
 
@@ -487,6 +528,7 @@ class SceneStreamer:
                     "version": PROTOCOL_VERSION,
                     "scene": scene.name,
                     "unitScale": round(scene.unit_settings.scale_length, 6),
+                    "features": FEATURES,
                 }
             ),
             force=True,

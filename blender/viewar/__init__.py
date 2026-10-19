@@ -4,7 +4,7 @@ import traceback
 import bpy
 from bpy.app.handlers import persistent
 
-from . import discovery, scene_stream, server
+from . import discovery, review, scene_stream, server
 
 HEAVY_SCENE_TRIANGLES = 1_000_000
 
@@ -305,6 +305,117 @@ class VIEWAR_OT_disconnect(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class VIEWAR_OT_mark_variant_set(bpy.types.Operator):
+    bl_idname = "viewar.mark_variant_set"
+    bl_label = "Use Active Collection as Variant Set"
+    bl_description = (
+        "Treat each child collection of the active collection as a design "
+        "option you can switch between in the app"
+    )
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        layer = context.view_layer.active_layer_collection
+        return layer is not None and len(layer.collection.children) >= 2
+
+    def execute(self, context):
+        coll = context.view_layer.active_layer_collection.collection
+        coll.viewar_variant_set = True
+        # Start with one option showing, so Blender and the app agree.
+        first = coll.children[0].name
+        layers = review.layer_collections(context.view_layer)
+        if not any(
+            not layers[c.name].exclude and not layers[c.name].hide_viewport
+            for c in coll.children
+            if c.name in layers
+        ):
+            review.apply_variant(context.view_layer, coll.name, first)
+        return {"FINISHED"}
+
+
+class VIEWAR_OT_unmark_variant_set(bpy.types.Operator):
+    bl_idname = "viewar.unmark_variant_set"
+    bl_label = "Stop Using as Variant Set"
+    bl_description = "Stream this collection as ordinary objects again"
+    bl_options = {"REGISTER", "UNDO"}
+
+    collection: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})
+
+    def execute(self, context):
+        coll = bpy.data.collections.get(self.collection)
+        if coll is None:
+            return {"CANCELLED"}
+        coll.viewar_variant_set = False
+        return {"FINISHED"}
+
+
+class VIEWAR_OT_set_variant(bpy.types.Operator):
+    bl_idname = "viewar.set_variant"
+    bl_label = "Show Option"
+    bl_description = "Show this option and hide the others, here and in the app"
+    bl_options = {"REGISTER", "UNDO"}
+
+    collection: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})
+    option: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})
+
+    def execute(self, context):
+        if not review.apply_variant(context.view_layer, self.collection, self.option):
+            return {"CANCELLED"}
+        return {"FINISHED"}
+
+
+class VIEWAR_OT_add_note(bpy.types.Operator):
+    bl_idname = "viewar.add_note"
+    bl_label = "Add Note at 3D Cursor"
+    bl_description = "Leave a note at the 3D cursor. It shows up as a pin in the app"
+    bl_options = {"REGISTER", "UNDO"}
+
+    text: bpy.props.StringProperty(name="Note", maxlen=review.MAX_NOTE_LENGTH)
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=360)
+
+    def execute(self, context):
+        if not self.text.strip():
+            return {"CANCELLED"}
+        scene = context.scene
+        review.add_note(scene, scene.cursor.location.copy(), self.text.strip(), "Blender")
+        return {"FINISHED"}
+
+
+class VIEWAR_OT_remove_note(bpy.types.Operator):
+    bl_idname = "viewar.remove_note"
+    bl_label = "Delete Note"
+    bl_description = "Delete this note here and in the app"
+    bl_options = {"REGISTER", "UNDO"}
+
+    note_id: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})
+
+    def execute(self, context):
+        if not review.remove_note(context.scene, self.note_id):
+            return {"CANCELLED"}
+        return {"FINISHED"}
+
+
+class VIEWAR_OT_select_note(bpy.types.Operator):
+    bl_idname = "viewar.select_note"
+    bl_label = "Select Note"
+    bl_description = "Select this note's empty in the viewport"
+
+    note_id: bpy.props.StringProperty(options={"HIDDEN", "SKIP_SAVE"})
+
+    def execute(self, context):
+        obj = review.find_note(context.scene, self.note_id)
+        if obj is None or not obj.visible_get():
+            return {"CANCELLED"}
+        for other in context.selected_objects:
+            other.select_set(False)
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+        return {"FINISHED"}
+
+
 # ---------------------------------------------------------------- panels
 
 
@@ -399,6 +510,81 @@ class VIEWAR_PT_streaming(bpy.types.Panel):
             layout.prop(obj, "viewar_visible", text=f"Show {obj.name} in AR")
 
 
+class VIEWAR_PT_variants(bpy.types.Panel):
+    bl_idname = "VIEWAR_PT_variants"
+    bl_label = "Variants"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ViewAR"
+    bl_parent_id = "VIEWAR_PT_main"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        layout = self.layout
+        sets = review.variant_sets(context.scene, context.view_layer)
+        if not sets:
+            col = layout.column(align=True)
+            col.label(text="Put each design option in its own")
+            col.label(text="collection inside a parent collection.")
+            col.label(text="Select the parent in the Outliner, then:")
+        for variant_set in sets:
+            box = layout.box()
+            row = box.row()
+            row.label(text=variant_set["name"], icon="OUTLINER_COLLECTION")
+            op = row.operator(VIEWAR_OT_unmark_variant_set.bl_idname, text="", icon="X", emboss=False)
+            op.collection = variant_set["name"]
+            col = box.column(align=True)
+            for option in variant_set["options"]:
+                active = option["name"] == variant_set["active"]
+                op = col.operator(
+                    VIEWAR_OT_set_variant.bl_idname,
+                    text=option["name"],
+                    icon="RADIOBUT_ON" if active else "RADIOBUT_OFF",
+                    depress=active,
+                )
+                op.collection = variant_set["name"]
+                op.option = option["name"]
+        layout.operator(VIEWAR_OT_mark_variant_set.bl_idname, icon="ADD")
+
+
+class VIEWAR_PT_notes(bpy.types.Panel):
+    bl_idname = "VIEWAR_PT_notes"
+    bl_label = "Notes"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "ViewAR"
+    bl_parent_id = "VIEWAR_PT_main"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context):
+        layout = self.layout
+        notes = review.note_objects(context.scene)
+        if not notes:
+            layout.label(text="Notes left in the app appear here.")
+        active = context.active_object
+        for obj in notes:
+            note_id = obj["viewar_note_id"]
+            box = layout.box()
+            row = box.row()
+            op = row.operator(
+                VIEWAR_OT_select_note.bl_idname,
+                text="",
+                icon="RESTRICT_SELECT_OFF",
+                emboss=False,
+            )
+            op.note_id = note_id
+            if obj == active:
+                row.prop(obj, '["viewar_note_text"]', text="")
+            else:
+                row.label(text=str(obj.get("viewar_note_text", "")))
+            op = row.operator(VIEWAR_OT_remove_note.bl_idname, text="", icon="X", emboss=False)
+            op.note_id = note_id
+            author = obj.get("viewar_note_author", "")
+            if author:
+                box.label(text=str(author), icon="USER")
+        layout.operator(VIEWAR_OT_add_note.bl_idname, icon="ADD")
+
+
 class VIEWAR_PT_stats(bpy.types.Panel):
     bl_idname = "VIEWAR_PT_stats"
     bl_label = "Statistics"
@@ -452,8 +638,16 @@ classes = (
     VIEWAR_OT_resync,
     VIEWAR_OT_copy_address,
     VIEWAR_OT_disconnect,
+    VIEWAR_OT_mark_variant_set,
+    VIEWAR_OT_unmark_variant_set,
+    VIEWAR_OT_set_variant,
+    VIEWAR_OT_add_note,
+    VIEWAR_OT_remove_note,
+    VIEWAR_OT_select_note,
     VIEWAR_PT_main,
     VIEWAR_PT_streaming,
+    VIEWAR_PT_variants,
+    VIEWAR_PT_notes,
     VIEWAR_PT_stats,
     VIEWAR_PT_settings,
 )
@@ -468,6 +662,11 @@ def register():
         default=True,
         description="Stream this object to ViewAR. Alt+click to change all selected objects",
     )
+    bpy.types.Collection.viewar_variant_set = bpy.props.BoolProperty(
+        name="AR Variant Set",
+        default=False,
+        description="Each child collection is a design option you can switch between in the app",
+    )
     if not bpy.app.background:
         bpy.app.timers.register(_auto_start, first_interval=1.0)
 
@@ -476,6 +675,7 @@ def unregister():
     if bpy.app.timers.is_registered(_auto_start):
         bpy.app.timers.unregister(_auto_start)
     stop()
+    del bpy.types.Collection.viewar_variant_set
     del bpy.types.Object.viewar_visible
     del bpy.types.WindowManager.viewar
     for cls in reversed(classes):

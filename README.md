@@ -22,11 +22,15 @@ The add-on runs a small server inside Blender and streams the open scene over yo
 - **Multiple devices.** Several phones can connect at once, a phone that joins late receives the whole scene, and you can see how much data each device received or disconnect it.
 - **Remembers your settings.** Port, update rate and limits are kept in Blender's preferences, and the server can start automatically with Blender.
 - **Protects slower phones.** Per-object triangle and instance budgets, plus automatic resync for devices that fall behind.
+- **Design variants.** Mark a collection as an AR Variant Set and each child collection becomes a design option. Switch options in the app (instantly, since every option is streamed) or in the panel, and the other side follows.
+- **Notes from AR.** Notes left on the model in the app arrive as empties in a *ViewAR Notes* collection, with the text shown in the viewport. Edit or delete them here, or add your own at the 3D cursor, and every connected device updates.
+- **Material try-on.** Materials picked in the app with *Also Apply in Blender* are assigned to the object's slot here.
+- **Room scans.** Scan a room in the app (LiDAR iPhone or iPad) and send it here as named boxes (Wall 1, Door 1, Table 1…) in a *Room Scan* collection. With your scene placed at real size, the room lands exactly where it is around your model. Scan objects are kept out of AR.
 
 **Streamed:** mesh, curve, surface, metaball and text objects (and instances of them) that are visible in the current view layer, with per-corner normals and the active UV map.
 **Not yet streamed:** lights, cameras and image textures (see the [roadmap](#roadmap)).
 
-The add-on still speaks wire protocol v1, so every feature works with the existing ViewAR app.
+The add-on still speaks wire protocol v1. Variants, notes, material try-on and room scans need ViewAR app 1.2 or later; older apps simply don't use them.
 
 ---
 
@@ -97,6 +101,18 @@ The **Devices** box lists each connected phone with the data it has received. Th
 | **Show *object* in AR** | Keeps the active object out of AR while it stays visible in Blender, for example reference planes or helper meshes. **Alt+click** changes all selected objects. This setting is saved with the .blend file. |
 
 These options last for the session and are not saved into your .blend files.
+
+### Variants sub-panel
+
+1. Put each design option in its own collection, all inside one parent collection, for example *Sofa* › *Option A*, *Option B*.
+2. Select the parent in the Outliner and press **Use Active Collection as Variant Set**.
+3. The options are listed with the visible one highlighted. Click an option to show it and hide the others, or switch in the app.
+
+Hidden options are still streamed, so switching in the app is instant. **×** turns a set back into ordinary collections. The setting is saved with the .blend file.
+
+### Notes sub-panel
+
+Lists every note with its author. Click the arrow to select a note's empty, edit the text of the selected note in place, or press **×** to delete it. **Add Note at 3D Cursor** leaves a note from Blender. Notes live in the *ViewAR Notes* collection and are never streamed as geometry.
 
 ### Statistics sub-panel
 
@@ -191,7 +207,7 @@ Instances come from `depsgraph.object_instances`. Protocol v1 has no instancing,
 
 ### Wire protocol (v1), in short
 
-Each frame has a 4-byte big-endian length, a 1-byte kind (`1` = JSON, `2` = binary mesh), then the payload. JSON messages are `hello`, `clear`, `transforms`, `remove` and `ping`. Mesh payloads carry little-endian positions, normals, optional UVs, triangle indices and per-triangle material indices, already converted to RealityKit's Y-up space. Full details are in section 4 of the [specification](ViewAR-Blender-Addon.md#4-wire-protocol-version-1).
+Each frame has a 4-byte big-endian length, a 1-byte kind (`1` = JSON, `2` = binary mesh), then the payload. JSON messages are `hello`, `clear`, `transforms`, `remove`, `ping`, `variants` and `notes`. Since 1.2 the app can also send `setMaterial`, `setVariant`, `addNote`, `removeNote` and `addRoomScan`, which the add-on announces in `hello.features`. Mesh payloads carry little-endian positions, normals, optional UVs, triangle indices and per-triangle material indices, already converted to RealityKit's Y-up space. Full details are in section 4 of the [specification](ViewAR-Blender-Addon.md#4-wire-protocol-version-1).
 
 ### Updating the discovery wheels
 
@@ -211,7 +227,7 @@ These need a protocol update in the iOS app as well:
 
 1. Image textures (base color, normal, roughness)
 2. Native instancing (send each shared mesh once plus instance matrices, instead of one mesh per instance)
-3. Pairing code for connections
+3. Pairing code for connections (more important now that the app can change the scene)
 4. One-shot USDZ snapshot for full material fidelity
 5. Delta meshes (send only positions when topology is unchanged)
 6. Lights and cameras
