@@ -1,8 +1,8 @@
-# ViewAR - AR for Blender: Blender Add-on
+# ProjectAR - AR for Blender: Blender Add-on
 
-Everything needed to build, install and maintain the Blender side of ViewAR. The add-on streams the open scene over the local network to the ViewAR iOS app, which shows it in AR and updates as you work.
+Everything needed to build, install and maintain the Blender side of ProjectAR. The add-on streams the open scene over the local network to the ProjectAR iOS app, which shows it in AR and updates as you work.
 
-For the iOS app, see `ViewAR-Developer-Guide.md`. The wire protocol in section 4 is the contract between the two, so keep it in sync with the app.
+For the iOS app, see `ProjectAR-Developer-Guide.md`. The wire protocol in section 4 is the contract between the two, so keep it in sync with the app.
 
 ---
 
@@ -147,7 +147,7 @@ schema_version = "1.0.0"
 
 id = "viewar"
 version = "1.0.0"
-name = "ViewAR"
+name = "ProjectAR"
 tagline = "Live preview your scene in AR on iPhone and iPad"
 maintainer = "Your Name <you@example.com>"
 type = "add-on"
@@ -167,10 +167,10 @@ wheels = [
 ]
 
 [permissions]
-network = "Streams the scene to the ViewAR app on your local network"
+network = "Streams the scene to the ProjectAR app on your local network"
 ```
 
-Check the Blender Extensions platform guidelines on naming before publishing there. The add-on name above is just "ViewAR" to stay on the safe side.
+Check the Blender Extensions platform guidelines on naming before publishing there. The add-on name above is just "ProjectAR" to stay on the safe side.
 
 ### 5.2 `server.py`
 
@@ -204,7 +204,7 @@ class Client:
         self.needs_full_sync = True
         threading.Thread(
             target=self._send_loop,
-            name=f"ViewAR client {address[0]}",
+            name=f"ProjectAR client {address[0]}",
             daemon=True,
         ).start()
 
@@ -278,7 +278,7 @@ class Server:
         self._sock = sock
         self._running = True
         self._thread = threading.Thread(
-            target=self._accept_loop, name="ViewAR accept", daemon=True
+            target=self._accept_loop, name="ProjectAR accept", daemon=True
         )
         self._thread.start()
 
@@ -365,7 +365,7 @@ class Advertiser:
             host = socket.gethostname().split(".")[0] or "blender"
             info = ServiceInfo(
                 SERVICE_TYPE,
-                f"ViewAR on {host}.{SERVICE_TYPE}",
+                f"ProjectAR on {host}.{SERVICE_TYPE}",
                 addresses=[socket.inet_aton(local_ip())],
                 port=port,
                 properties={"v": "1"},
@@ -405,7 +405,7 @@ def _close(zc, info):
 
 ```python
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Tracks scene changes and turns them into ViewAR protocol frames."""
+"""Tracks scene changes and turns them into ProjectAR protocol frames."""
 
 import json
 import struct
@@ -820,7 +820,7 @@ class ViewARSettings(bpy.types.PropertyGroup):
 class VIEWAR_OT_start(bpy.types.Operator):
     bl_idname = "viewar.start"
     bl_label = "Start Server"
-    bl_description = "Stream this scene to the ViewAR app on your local network"
+    bl_description = "Stream this scene to the ProjectAR app on your local network"
 
     def execute(self, context):
         if _state["server"] is not None:
@@ -854,10 +854,10 @@ class VIEWAR_OT_resync(bpy.types.Operator):
 
 class VIEWAR_PT_main(bpy.types.Panel):
     bl_idname = "VIEWAR_PT_main"
-    bl_label = "ViewAR"
+    bl_label = "ProjectAR"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "ViewAR"
+    bl_category = "ProjectAR"
 
     def draw(self, context):
         layout = self.layout
@@ -949,7 +949,7 @@ blender --command extension validate --source-dir ./blender/viewar
 blender --command extension build --source-dir ./blender/viewar --output-dir ./dist
 ```
 
-Install the resulting zip via **Edit > Preferences > Get Extensions > (dropdown) Install from Disk**. The panel appears in the 3D Viewport sidebar (press **N**) under the **ViewAR** tab.
+Install the resulting zip via **Edit > Preferences > Get Extensions > (dropdown) Install from Disk**. The panel appears in the 3D Viewport sidebar (press **N**) under the **ProjectAR** tab.
 
 ## 8. Platform notes
 
@@ -965,10 +965,10 @@ Install the resulting zip via **Edit > Preferences > Get Extensions > (dropdown)
 
 ## 9. Using the add-on
 
-1. Open the 3D Viewport sidebar with **N** and select the **ViewAR** tab.
+1. Open the 3D Viewport sidebar with **N** and select the **ProjectAR** tab.
 2. Optionally adjust **Port**, **Updates per Second** and **Max Triangles per Object**. These can only be changed while the server is stopped.
 3. Press **Start Server**. The panel shows this computer's IP and port, and whether it is visible to nearby devices.
-4. In the ViewAR app, pick the computer under Nearby, or enter the IP and port manually.
+4. In the ProjectAR app, pick the computer under Nearby, or enter the IP and port manually.
 5. The **Devices** box lists connected phones. Once a device is connected, the panel shows how many objects and triangles are being streamed, and lists objects that were skipped for exceeding the triangle budget.
 6. **Resync** sends the whole scene again to every device. **Stop** disconnects everyone and closes the port.
 
@@ -977,7 +977,7 @@ Settings live on the window manager, so they are not saved into your .blend file
 **Tips for smooth results on non-Pro iPhones**
 
 1. Keep the whole scene under about 1 million triangles. The panel warns above that.
-2. Lower the viewport level of Subdivision Surface modifiers while previewing. ViewAR streams the evaluated mesh, which uses viewport settings.
+2. Lower the viewport level of Subdivision Surface modifiers while previewing. ProjectAR streams the evaluated mesh, which uses viewport settings.
 3. Hide objects you don't need in AR. Hidden objects are removed from the stream immediately.
 4. Lower **Updates per Second** to 15 or 20 for heavy animated scenes on older phones.
 

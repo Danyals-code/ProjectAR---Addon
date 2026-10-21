@@ -97,7 +97,7 @@ def _auto_start():
         except OSError as exc:
             stop()
             _state["error"] = f"Auto start failed: {exc}"
-            print(f"ViewAR: {_state['error']}")
+            print(f"ProjectAR: {_state['error']}")
     return None
 
 
@@ -153,7 +153,7 @@ class ViewARPreferences(bpy.types.AddonPreferences):
         default=51515,
         min=1024,
         max=65535,
-        description="TCP port the ViewAR app connects to",
+        description="TCP port the ProjectAR app connects to",
     )
     update_rate: bpy.props.IntProperty(
         name="Updates per Second",
@@ -238,7 +238,7 @@ def _draw_settings(layout, prefs):
 class VIEWAR_OT_start(bpy.types.Operator):
     bl_idname = "viewar.start"
     bl_label = "Start Server"
-    bl_description = "Stream this scene to the ViewAR app on your local network"
+    bl_description = "Stream this scene to the ProjectAR app on your local network"
 
     def execute(self, context):
         if _state["server"] is not None:
@@ -421,10 +421,10 @@ class VIEWAR_OT_select_note(bpy.types.Operator):
 
 class VIEWAR_PT_main(bpy.types.Panel):
     bl_idname = "VIEWAR_PT_main"
-    bl_label = "ViewAR"
+    bl_label = "ProjectAR"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "ViewAR"
+    bl_category = "ProjectAR"
 
     def draw(self, context):
         layout = self.layout
@@ -489,7 +489,7 @@ class VIEWAR_PT_streaming(bpy.types.Panel):
     bl_label = "Streaming"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "ViewAR"
+    bl_category = "ProjectAR"
     bl_parent_id = "VIEWAR_PT_main"
 
     def draw(self, context):
@@ -515,7 +515,7 @@ class VIEWAR_PT_variants(bpy.types.Panel):
     bl_label = "Variants"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "ViewAR"
+    bl_category = "ProjectAR"
     bl_parent_id = "VIEWAR_PT_main"
     bl_options = {"DEFAULT_CLOSED"}
 
@@ -552,7 +552,7 @@ class VIEWAR_PT_notes(bpy.types.Panel):
     bl_label = "Notes"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "ViewAR"
+    bl_category = "ProjectAR"
     bl_parent_id = "VIEWAR_PT_main"
     bl_options = {"DEFAULT_CLOSED"}
 
@@ -590,7 +590,7 @@ class VIEWAR_PT_stats(bpy.types.Panel):
     bl_label = "Statistics"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "ViewAR"
+    bl_category = "ProjectAR"
     bl_parent_id = "VIEWAR_PT_main"
 
     @classmethod
@@ -622,7 +622,7 @@ class VIEWAR_PT_settings(bpy.types.Panel):
     bl_label = "Settings"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "ViewAR"
+    bl_category = "ProjectAR"
     bl_parent_id = "VIEWAR_PT_main"
     bl_options = {"DEFAULT_CLOSED"}
 
@@ -660,7 +660,7 @@ def register():
     bpy.types.Object.viewar_visible = bpy.props.BoolProperty(
         name="Show in AR",
         default=True,
-        description="Stream this object to ViewAR. Alt+click to change all selected objects",
+        description="Stream this object to ProjectAR. Alt+click to change all selected objects",
     )
     bpy.types.Collection.viewar_variant_set = bpy.props.BoolProperty(
         name="AR Variant Set",

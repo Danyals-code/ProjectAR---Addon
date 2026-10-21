@@ -1,6 +1,14 @@
 # Changelog
 
-All notable changes to the ViewAR Blender add-on. The add-on version is the `version` in `blender/viewar/blender_manifest.toml`. The wire protocol has its own version (`PROTOCOL_VERSION` in `scene_stream.py`).
+All notable changes to the ProjectAR Blender add-on, called ViewAR before 1.2.1. The add-on version is the `version` in `blender/viewar/blender_manifest.toml`. The wire protocol has its own version (`PROTOCOL_VERSION` in `scene_stream.py`).
+
+## 1.2.1 — 2026-10-21
+
+Wire protocol stays at **v1**, and nothing changes for the app's connection.
+
+### Changed
+- **Renamed to ProjectAR**, to match the app. The sidebar tab, panel, extension name, Bonjour name shown in the app, Notes collection and scan materials now say ProjectAR. The zip is now `projectar-<version>.zip`.
+- Internal names stay the same, so saved files keep their settings: the extension id `viewar`, operator and property names, note properties, and the `_viewar._tcp` Bonjour service type the app looks for. Notes in a file's existing *ViewAR Notes* collection still work.
 
 ## 1.2.0 — 2026-10-19
 
@@ -52,7 +60,7 @@ Wire protocol stays at **v1**, so this release works with the existing ViewAR iO
 
 ## 1.0.0 — 2026-10-08
 
-First release, built from the specification in `ViewAR-Blender-Addon.md`.
+First release, built from the specification in `ProjectAR-Blender-Addon.md`.
 
 - TCP server with length-prefixed frames and one sender thread per device.
 - Live streaming of transforms and evaluated meshes, with Principled BSDF materials.

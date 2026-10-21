@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Package blender/viewar into dist/viewar-<version>.zip, ready for
+"""Package blender/viewar into dist/projectar-<version>.zip, ready for
 Edit > Preferences > Get Extensions > Install from Disk.
 
     python3 build.py          build the zip
@@ -37,9 +37,9 @@ def included(path):
 
 def build():
     DIST.mkdir(exist_ok=True)
-    for old in DIST.glob("viewar-*.zip"):
+    for old in [*DIST.glob("projectar-*.zip"), *DIST.glob("viewar-*.zip")]:
         old.unlink()
-    target = DIST / f"viewar-{version()}.zip"
+    target = DIST / f"projectar-{version()}.zip"
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zf:
         for path in sorted(p for p in SOURCE.rglob("*") if included(p)):
             zf.write(path, path.relative_to(SOURCE).as_posix())

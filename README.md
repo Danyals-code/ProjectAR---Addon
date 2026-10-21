@@ -1,10 +1,10 @@
-# ViewAR – AR View for Blender (Add-on)
+# ProjectAR – AR View for Blender (Add-on)
 
 Live preview your Blender scene in augmented reality on iPhone and iPad.
 
-The add-on runs a small server inside Blender and streams the open scene over your local network to the **ViewAR** iOS app. Move an object, add a modifier or tweak a material, and the AR view updates within a fraction of a second.
+The add-on runs a small server inside Blender and streams the open scene over your local network to the **ProjectAR** iOS app. Move an object, add a modifier or tweak a material, and the AR view updates within a fraction of a second.
 
-> The full technical specification (architecture, wire protocol, source walkthrough) is in [ViewAR-Blender-Addon.md](ViewAR-Blender-Addon.md).
+> The full technical specification (architecture, wire protocol, source walkthrough) is in [ProjectAR-Blender-Addon.md](ProjectAR-Blender-Addon.md).
 
 ---
 
@@ -23,14 +23,14 @@ The add-on runs a small server inside Blender and streams the open scene over yo
 - **Remembers your settings.** Port, update rate and limits are kept in Blender's preferences, and the server can start automatically with Blender.
 - **Protects slower phones.** Per-object triangle and instance budgets, plus automatic resync for devices that fall behind.
 - **Design variants.** Mark a collection as an AR Variant Set and each child collection becomes a design option. Switch options in the app (instantly, since every option is streamed) or in the panel, and the other side follows.
-- **Notes from AR.** Notes left on the model in the app arrive as empties in a *ViewAR Notes* collection, with the text shown in the viewport. Edit or delete them here, or add your own at the 3D cursor, and every connected device updates.
+- **Notes from AR.** Notes left on the model in the app arrive as empties in a *ProjectAR Notes* collection, with the text shown in the viewport. Edit or delete them here, or add your own at the 3D cursor, and every connected device updates.
 - **Material try-on.** Materials picked in the app with *Also Apply in Blender* are assigned to the object's slot here.
 - **Room scans.** Scan a room in the app (LiDAR iPhone or iPad) and send it here as named boxes (Wall 1, Door 1, Table 1…) in a *Room Scan* collection. With your scene placed at real size, the room lands exactly where it is around your model. Scan objects are kept out of AR.
 
 **Streamed:** mesh, curve, surface, metaball and text objects (and instances of them) that are visible in the current view layer, with per-corner normals and the active UV map.
 **Not yet streamed:** lights, cameras and image textures (see the [roadmap](#roadmap)).
 
-The add-on still speaks wire protocol v1. Variants, notes, material try-on and room scans need ViewAR app 1.2 or later; older apps simply don't use them.
+The add-on still speaks wire protocol v1. Variants, notes, material try-on and room scans need ProjectAR app 1.2 or later; older apps simply don't use them.
 
 ---
 
@@ -40,7 +40,7 @@ The add-on still speaks wire protocol v1. Variants, notes, material try-on and r
 |---|---|
 | Blender | 4.2 or newer (tested on 5.2 LTS) |
 | OS | Windows, macOS or Linux |
-| iOS | The ViewAR app on an ARKit-capable iPhone or iPad |
+| iOS | The ProjectAR app on an ARKit-capable iPhone or iPad |
 | Network | Computer and phone on the **same** Wi-Fi or LAN, without client isolation |
 
 No extra Python packages need to be installed. The Bonjour libraries are bundled as wheels, and Blender installs them for you.
@@ -51,10 +51,10 @@ No extra Python packages need to be installed. The Bonjour libraries are bundled
 
 ### From the ready-made zip
 
-1. Take `dist/viewar-<version>.zip` from this repository (or build it yourself, see below).
+1. Take `dist/projectar-<version>.zip` from this repository (or build it yourself, see below).
 2. In Blender go to **Edit › Preferences › Get Extensions**.
 3. Open the **⌄** dropdown in the top right and choose **Install from Disk…**.
-4. Select the zip. ViewAR is enabled automatically.
+4. Select the zip. ProjectAR is enabled automatically.
 
 ### Building the zip
 
@@ -64,7 +64,7 @@ The quickest way needs only Python 3:
 python3 build.py
 ```
 
-This writes `dist/viewar-<version>.zip`, taking the version from `blender_manifest.toml`, and deletes older zips. When you work in Claude Code, a project hook (`.claude/settings.json`) runs this automatically every time a file in `blender/viewar/` changes, so the zip in `dist/` always matches the source.
+This writes `dist/projectar-<version>.zip`, taking the version from `blender_manifest.toml`, and deletes older zips. When you work in Claude Code, a project hook (`.claude/settings.json`) runs this automatically every time a file in `blender/viewar/` changes, so the zip in `dist/` always matches the source.
 
 To also validate the manifest, use Blender's own tooling (Blender must be on your `PATH`):
 
@@ -82,9 +82,9 @@ On macOS the Blender binary is at `/Applications/Blender.app/Contents/MacOS/Blen
 
 ## Usage
 
-1. In the 3D Viewport press **N** to open the sidebar, then select the **ViewAR** tab.
+1. In the 3D Viewport press **N** to open the sidebar, then select the **ProjectAR** tab.
 2. Press **Start Server**. The panel shows this computer's address and port (plus any other network addresses), and whether it is visible to nearby devices. The copy button next to the address puts it on the clipboard. With Universal Clipboard you can paste it straight into the app on your iPhone.
-3. Open the ViewAR app and pick your computer under **Nearby**, or enter the address shown in the panel.
+3. Open the ProjectAR app and pick your computer under **Nearby**, or enter the address shown in the panel.
 4. Tap a surface in the app to place the scene. You see Blender's **Front** view first.
 5. Work as usual. **Pause Updates** freezes what the devices show, and **Resume Updates** sends everything that changed in the meantime.
 6. **Resync** sends the whole scene again. **Stop** disconnects all devices and closes the port.
@@ -112,7 +112,7 @@ Hidden options are still streamed, so switching in the app is instant. **×** tu
 
 ### Notes sub-panel
 
-Lists every note with its author. Click the arrow to select a note's empty, edit the text of the selected note in place, or press **×** to delete it. **Add Note at 3D Cursor** leaves a note from Blender. Notes live in the *ViewAR Notes* collection and are never streamed as geometry.
+Lists every note with its author. Click the arrow to select a note's empty, edit the text of the selected note in place, or press **×** to delete it. **Add Note at 3D Cursor** leaves a note from Blender. Notes live in the *ProjectAR Notes* collection and are never streamed as geometry.
 
 ### Statistics sub-panel
 
@@ -120,7 +120,7 @@ This shows the number of streamed objects, instances and triangles. It also warn
 
 ### Settings sub-panel
 
-These are also under **Edit › Preferences › Add-ons › ViewAR**, and Blender remembers them between sessions:
+These are also under **Edit › Preferences › Add-ons › ProjectAR**, and Blender remembers them between sessions:
 
 | Setting | Default | Notes |
 |---|---|---|
@@ -166,7 +166,7 @@ The server only starts when you press **Start Server**, listens only on your loc
 | Wrong colors | Only unlinked Principled BSDF values are read. If Base Color is driven by a texture, the material's viewport display color is used. |
 | Scene is huge or tiny | Check **Scene Properties › Units › Unit Scale**. One Blender unit equals one meter at Unit Scale 1. Changes are sent to devices automatically. |
 
-The most recent error is shown at the top of the ViewAR panel. Full tracebacks are printed to the system console (**Window › Toggle System Console** on Windows, or start Blender from a terminal on macOS and Linux).
+The most recent error is shown at the top of the ProjectAR panel. Full tracebacks are printed to the system console (**Window › Toggle System Console** on Windows, or start Blender from a terminal on macOS and Linux).
 
 ---
 
@@ -176,10 +176,10 @@ The most recent error is shown at the top of the ViewAR panel. Full tracebacks a
 .
 ├── README.md
 ├── CHANGELOG.md
-├── ViewAR-Blender-Addon.md      # full specification and wire protocol
+├── ProjectAR-Blender-Addon.md      # full specification and wire protocol
 ├── build.py                     # packages the add-on into dist/
 ├── dist/
-│   └── viewar-<version>.zip     # ready to install
+│   └── projectar-<version>.zip     # ready to install
 ├── .claude/settings.json        # rebuilds the zip after each add-on edit
 └── blender/
     └── viewar/
@@ -207,7 +207,7 @@ Instances come from `depsgraph.object_instances`. Protocol v1 has no instancing,
 
 ### Wire protocol (v1), in short
 
-Each frame has a 4-byte big-endian length, a 1-byte kind (`1` = JSON, `2` = binary mesh), then the payload. JSON messages are `hello`, `clear`, `transforms`, `remove`, `ping`, `variants` and `notes`. Since 1.2 the app can also send `setMaterial`, `setVariant`, `addNote`, `removeNote` and `addRoomScan`, which the add-on announces in `hello.features`. Mesh payloads carry little-endian positions, normals, optional UVs, triangle indices and per-triangle material indices, already converted to RealityKit's Y-up space. Full details are in section 4 of the [specification](ViewAR-Blender-Addon.md#4-wire-protocol-version-1).
+Each frame has a 4-byte big-endian length, a 1-byte kind (`1` = JSON, `2` = binary mesh), then the payload. JSON messages are `hello`, `clear`, `transforms`, `remove`, `ping`, `variants` and `notes`. Since 1.2 the app can also send `setMaterial`, `setVariant`, `addNote`, `removeNote` and `addRoomScan`, which the add-on announces in `hello.features`. Mesh payloads carry little-endian positions, normals, optional UVs, triangle indices and per-triangle material indices, already converted to RealityKit's Y-up space. Full details are in section 4 of the [specification](ProjectAR-Blender-Addon.md#4-wire-protocol-version-1).
 
 ### Updating the discovery wheels
 
@@ -236,4 +236,4 @@ These need a protocol update in the iOS app as well:
 
 ## License
 
-GPL-3.0-or-later, because the add-on uses Blender's Python API. The ViewAR iOS app is a separate program and is not covered by this license.
+GPL-3.0-or-later, because the add-on uses Blender's Python API. The ProjectAR iOS app is a separate program and is not covered by this license.

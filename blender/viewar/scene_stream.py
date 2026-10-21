@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Tracks scene changes and turns them into ViewAR protocol frames."""
+"""Tracks scene changes and turns them into ProjectAR protocol frames."""
 
 import json
 import struct
@@ -430,7 +430,7 @@ class SceneStreamer:
             try:
                 review.handle_message(message, scene, view_layer, self._space)
             except Exception as exc:  # one bad message shouldn't stop the rest
-                print(f"ViewAR: could not apply {message.get('type')} from {client.label}: {exc}")
+                print(f"ProjectAR: could not apply {message.get('type')} from {client.label}: {exc}")
 
     def _gather_instances(self, depsgraph, accept, opts, now, full, commit):
         """Collection, particle and Geometry Nodes instances, flattened.

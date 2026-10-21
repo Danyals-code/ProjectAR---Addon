@@ -8,7 +8,7 @@
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/build.py\" --hook",
             "timeout": 30,
-            "statusMessage": "Rebuilding ViewAR zip"
+            "statusMessage": "Rebuilding ProjectAR zip"
           }
         ]
       }

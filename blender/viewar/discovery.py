@@ -72,7 +72,7 @@ class Advertiser:
             host = socket.gethostname().split(".")[0] or "blender"
             info = ServiceInfo(
                 SERVICE_TYPE,
-                f"ViewAR on {host}.{SERVICE_TYPE}",
+                f"ProjectAR on {host}.{SERVICE_TYPE}",
                 addresses=[socket.inet_aton(a) for a in addresses],
                 port=port,
                 properties={"v": "1"},
@@ -82,7 +82,7 @@ class Advertiser:
             zc.register_service(info, allow_name_change=True)
         except Exception as exc:
             self.error = str(exc)
-            print(f"ViewAR: auto discovery failed: {exc}")
+            print(f"ProjectAR: auto discovery failed: {exc}")
             if zc is not None:
                 zc.close()
             return

@@ -34,12 +34,12 @@ class Client:
         self.needs_full_sync = True
         threading.Thread(
             target=self._send_loop,
-            name=f"ViewAR client {address[0]}",
+            name=f"ProjectAR client {address[0]}",
             daemon=True,
         ).start()
         threading.Thread(
             target=self._receive_loop,
-            name=f"ViewAR receive {address[0]}",
+            name=f"ProjectAR receive {address[0]}",
             daemon=True,
         ).start()
 
@@ -154,7 +154,7 @@ class Server:
         self._sock = sock
         self._running = True
         self._thread = threading.Thread(
-            target=self._accept_loop, name="ViewAR accept", daemon=True
+            target=self._accept_loop, name="ProjectAR accept", daemon=True
         )
         self._thread.start()
 

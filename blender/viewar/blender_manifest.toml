@@ -1,13 +1,13 @@
 schema_version = "1.0.0"
 
 id = "viewar"
-version = "1.2.0"
-name = "ViewAR"
+version = "1.2.1"
+name = "ProjectAR"
 tagline = "Live preview your scene in AR on iPhone and iPad"
 maintainer = "Danyal Sarfraz"
 type = "add-on"
 
-website = "https://github.com/Danyals-code/ViewAR---AR-VIew-for-Blender---Addon"
+website = "https://github.com/Danyals-code/SceneViewer---Addon"
 tags = ["3D View", "Import-Export"]
 
 blender_version_min = "4.2.0"
@@ -25,4 +25,4 @@ wheels = [
 ]
 
 [permissions]
-network = "Streams the scene to the ViewAR app on your local network"
+network = "Streams the scene to the ProjectAR app on your local network"

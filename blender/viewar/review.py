@@ -4,7 +4,7 @@
 A variant set is a collection marked "AR Variant Set". Each child collection
 is one design option, and the visible one is the active option.
 
-Notes are empties in the "ViewAR Notes" collection that carry their text in
+Notes are empties in the "ProjectAR Notes" collection that carry their text in
 custom properties. The app places them on the model, and they can also be
 added, edited or deleted in Blender.
 """
@@ -18,7 +18,9 @@ from mathutils import Matrix, Vector
 # Blender (x, y, z) -> RealityKit (x, z, -y), as in scene_stream.
 AXIS = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, -1, 0, 0), (0, 0, 0, 1)))
 
-NOTES_COLLECTION = "ViewAR Notes"
+NOTES_COLLECTION = "ProjectAR Notes"
+# Files saved before the add-on was renamed keep their notes here.
+LEGACY_NOTES_COLLECTION = "ViewAR Notes"
 MAX_NOTE_LENGTH = 1000
 NOTE_SIZE_METERS = 0.05
 
@@ -101,8 +103,14 @@ def apply_variant(view_layer, set_name, option_name):
 # ---------------------------------------------------------------- notes
 
 
+def _existing_notes_collection():
+    return bpy.data.collections.get(NOTES_COLLECTION) or bpy.data.collections.get(
+        LEGACY_NOTES_COLLECTION
+    )
+
+
 def note_objects(scene):
-    coll = bpy.data.collections.get(NOTES_COLLECTION)
+    coll = _existing_notes_collection()
     if coll is None:
         return []
     names = {o.name_full for o in scene.objects}
@@ -134,7 +142,7 @@ def notes(scene, space):
 
 
 def _notes_collection(scene):
-    coll = bpy.data.collections.get(NOTES_COLLECTION)
+    coll = _existing_notes_collection()
     if coll is None:
         coll = bpy.data.collections.new(NOTES_COLLECTION)
     if coll not in scene.collection.children_recursive:
@@ -184,12 +192,12 @@ def remove_note(scene, note_id):
 SCAN_COLLECTION = "Room Scan"
 # Kind -> (sub-collection, material name, sRGB-ish color with alpha)
 SCAN_KINDS = {
-    "wall": ("Walls", "ViewAR Scan Wall", (0.85, 0.85, 0.83, 1.0)),
-    "floor": ("Floors", "ViewAR Scan Floor", (0.55, 0.55, 0.55, 1.0)),
-    "door": ("Openings", "ViewAR Scan Door", (0.55, 0.42, 0.3, 1.0)),
-    "window": ("Openings", "ViewAR Scan Window", (0.6, 0.78, 0.9, 0.35)),
-    "opening": ("Openings", "ViewAR Scan Opening", (0.9, 0.9, 0.9, 0.2)),
-    "object": ("Furniture", "ViewAR Scan Object", (0.7, 0.7, 0.72, 1.0)),
+    "wall": ("Walls", "ProjectAR Scan Wall", (0.85, 0.85, 0.83, 1.0)),
+    "floor": ("Floors", "ProjectAR Scan Floor", (0.55, 0.55, 0.55, 1.0)),
+    "door": ("Openings", "ProjectAR Scan Door", (0.55, 0.42, 0.3, 1.0)),
+    "window": ("Openings", "ProjectAR Scan Window", (0.6, 0.78, 0.9, 0.35)),
+    "opening": ("Openings", "ProjectAR Scan Opening", (0.9, 0.9, 0.9, 0.2)),
+    "object": ("Furniture", "ProjectAR Scan Object", (0.7, 0.7, 0.72, 1.0)),
 }
 MAX_SCAN_ITEMS = 2000
 
