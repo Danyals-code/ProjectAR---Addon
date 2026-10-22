@@ -4,7 +4,7 @@
 Edit > Preferences > Get Extensions > Install from Disk.
 
     python3 build.py          build the zip
-    python3 build.py --hook   same, but reads a Claude Code hook payload on
+    python3 build.py --hook   same, but reads an editor hook payload (JSON) on
                               stdin and only builds if the edited file is
                               inside blender/viewar/
 """

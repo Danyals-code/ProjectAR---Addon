@@ -64,7 +64,7 @@ The quickest way needs only Python 3:
 python3 build.py
 ```
 
-This writes `dist/projectar-<version>.zip`, taking the version from `blender_manifest.toml`, and deletes older zips. When you work in Claude Code, a project hook (`.claude/settings.json`) runs this automatically every time a file in `blender/viewar/` changes, so the zip in `dist/` always matches the source.
+This writes `dist/projectar-<version>.zip`, taking the version from `blender_manifest.toml`, and deletes older zips.
 
 To also validate the manifest, use Blender's own tooling (Blender must be on your `PATH`):
 
@@ -176,11 +176,10 @@ The most recent error is shown at the top of the ProjectAR panel. Full traceback
 .
 ├── README.md
 ├── CHANGELOG.md
-├── ProjectAR-Blender-Addon.md      # full specification and wire protocol
+├── ProjectAR-Blender-Addon.md   # full specification and wire protocol
 ├── build.py                     # packages the add-on into dist/
 ├── dist/
-│   └── projectar-<version>.zip     # ready to install
-├── .claude/settings.json        # rebuilds the zip after each add-on edit
+│   └── projectar-<version>.zip  # ready to install
 └── blender/
     └── viewar/
         ├── blender_manifest.toml   # extension metadata, permissions, wheels
