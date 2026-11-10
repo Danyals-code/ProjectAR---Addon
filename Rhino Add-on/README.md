@@ -1,9 +1,26 @@
-# ProjectAR for Rhino (Add-on)
+<div align="center">
 
-Live preview your Rhino model in augmented reality on iPhone and iPad.
+# ProjectAR for Rhino
+
+**Live-preview your Rhino model in augmented reality on iPhone and iPad.**
+
+[![Version](https://img.shields.io/badge/version-0.1.0_preview-801010?style=flat-square&logo=rhinoceros&logoColor=white)](CHANGELOG.md)
+[![Rhino](https://img.shields.io/badge/Rhino-8-801010?style=flat-square&logo=rhinoceros&logoColor=white)](#requirements)
+[![Platforms](https://img.shields.io/badge/platforms-Windows_%7C_macOS-555555?style=flat-square)](#requirements)
+[![Protocol](https://img.shields.io/badge/protocol-v1-4C6EF5?style=flat-square)](../Blender%20Add-on/ProjectAR-Blender-Addon.md#4-wire-protocol-version-1)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-2F855A?style=flat-square&logo=gnu&logoColor=white)](#license)
+
+[Features](#features) · [Install](#installation) · [Usage](#usage) · [First run](#first-run-in-rhino) · [Changelog](CHANGELOG.md)
+
+</div>
+
+---
+
+← Back to the [repository overview](../README.md) · Using Blender? See [ProjectAR for Blender](../Blender%20Add-on/README.md).
 
 The add-on runs a small server inside Rhino and streams the open document over your local network to the **ProjectAR** iOS app, the same app the Blender add-on streams to. Move an object, edit it, or change a material, and the AR view updates within a fraction of a second. It speaks the same wire protocol as the Blender add-on, so the app needs no changes.
 
+> [!IMPORTANT]
 > **Status: 0.1.0, not yet run in Rhino.** It was written without a copy of Rhino available, against the RhinoCommon API. Everything that doesn't need Rhino (the protocol, the server, streaming, snapshots, study sessions, decisions) is tested end to end with a stand-in for the app. The Rhino side is tested against a stand-in for RhinoCommon. The first run in Rhino 8 is the real test: see [First run in Rhino](#first-run-in-rhino).
 
 ---
