@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Minimal threaded TCP server with length-prefixed frames."""
+"""Minimal threaded TCP server with length-prefixed frames.
+
+The same server as the Blender add-on's. Nothing here touches Rhino: the
+network threads only move finished bytes, and messages from the app wait in
+an inbox until Rhino's main thread takes them.
+"""
 
 import json
 import queue
@@ -16,7 +21,7 @@ KIND_MESH = 2
 # A full sync itself doesn't count, however large the scene: otherwise a big
 # scene on slow Wi-Fi would be dropped and resent forever.
 MAX_PENDING_BYTES = 64 * 1024 * 1024
-# More devices than this are turned away, so a busy network can't stall Blender.
+# More devices than this are turned away, so a busy network can't stall Rhino.
 MAX_CLIENTS = 8
 # A send that makes no progress for this long means the device is gone. It
 # applies per chunk, so a slow but steady device can take as long as it needs.
@@ -50,9 +55,11 @@ class Client:
         self.needs_full_sync = True
         # What the app said it supports, from its "client" message.
         self.features = set()
+        # True once that message arrived. Older apps never send it.
+        self.identified = False
         # Texture ids already sent to this device.
         self.sent_textures = set()
-        # "new" until the streamer decides, then "pending" while Blender asks,
+        # "new" until the streamer decides, then "pending" while Rhino asks,
         # "allowed", or "closing" once refused or timed out.
         self.approval = "new"
         self.connected_at = time.monotonic()
@@ -83,7 +90,7 @@ class Client:
 
     @property
     def device_key(self):
-        """What Blender remembers an allowed device by: its id, or for apps
+        """What Rhino remembers an allowed device by: its id, or for apps
         that send none, its IP address."""
         return f"id:{self.device_id}" if self.device_id else f"ip:{self.address[0]}"
 
@@ -119,6 +126,8 @@ class Client:
                 data, forced = self._queue.get_nowait()
             except queue.Empty:
                 return
+            if data is None:
+                continue
             with self._lock:
                 self._pending -= len(data)
                 if forced:
@@ -193,11 +202,12 @@ class Client:
 
 
 class Server:
-    def __init__(self, port):
+    def __init__(self, port, host="0.0.0.0"):
         self.port = port
+        self.host = host  # tests listen on 127.0.0.1 only
         self._clients = []
         self._lock = threading.Lock()
-        # (client, message) pairs from the app, handled on Blender's main thread.
+        # (client, message) pairs from the app, handled on Rhino's main thread.
         self.inbox = queue.Queue()
         self._sock = None
         self._thread = None
@@ -208,11 +218,11 @@ class Server:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-                # Windows: SO_REUSEADDR would let a second Blender share the port.
+                # Windows: SO_REUSEADDR would let a second program share the port.
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             else:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(("0.0.0.0", self.port))
+            sock.bind((self.host, self.port))
             sock.listen(4)
         except OSError:
             sock.close()
@@ -229,7 +239,8 @@ class Server:
         """On macOS and Linux, SO_REUSEADDR lets the wildcard bind succeed while
         another program listens on 127.0.0.1 with the same port, and local
         connections would then go to that program. Binding loopback first
-        finds that out."""
+        finds that out. Blender running ProjectAR on the same port is the
+        usual case."""
         if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             return  # Windows refuses the shared bind by itself
         probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

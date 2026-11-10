@@ -45,6 +45,7 @@ def _options():
         max_texture_size=int(prefs.max_texture_size),
         require_approval=prefs.require_approval,
         trusted=frozenset(_trusted_devices(prefs)),
+        stream_lights=session.stream_lights,
     )
 
 
@@ -115,6 +116,13 @@ def _on_load_post(*_args):
         streamer.request_full_sync()
 
 
+@persistent
+def _on_undo(*_args):
+    streamer = _state["streamer"]
+    if streamer is not None:
+        streamer.on_undo()
+
+
 def _tick():
     streamer = _state["streamer"]
     if streamer is None:
@@ -137,6 +145,9 @@ def _redraw_if_changed(streamer):
         streamer.object_count,
         streamer.instance_count,
         streamer.instances_capped,
+        streamer.prototype_count,
+        streamer.snapshot_busy,
+        tuple(sorted(c.label for c in streamer.snapshot_clients)),
         streamer.triangle_count,
         len(streamer.skipped),
         _state["error"],
@@ -183,6 +194,9 @@ def start(context):
         handlers.depsgraph_update_post.append(_on_depsgraph_update)
     if _on_load_post not in handlers.load_post:
         handlers.load_post.append(_on_load_post)
+    for name in ("undo_post", "redo_post"):
+        if _on_undo not in getattr(handlers, name):
+            getattr(handlers, name).append(_on_undo)
     if not bpy.app.timers.is_registered(_tick):
         bpy.app.timers.register(_tick, first_interval=0.1, persistent=True)
 
@@ -195,6 +209,9 @@ def stop():
         handlers.depsgraph_update_post.remove(_on_depsgraph_update)
     if _on_load_post in handlers.load_post:
         handlers.load_post.remove(_on_load_post)
+    for name in ("undo_post", "redo_post"):
+        if _on_undo in getattr(handlers, name):
+            getattr(handlers, name).remove(_on_undo)
     if _state["advertiser"] is not None:
         _state["advertiser"].stop()
     if _state["server"] is not None:
@@ -235,10 +252,13 @@ class ViewARPreferences(bpy.types.AddonPreferences):
     )
     max_instances: bpy.props.IntProperty(
         name="Max Instances",
-        default=500,
+        default=2000,
         min=0,
         max=10_000,
-        description="Instances beyond this are not sent. Each instance is streamed as its own mesh",
+        description=(
+            "Instances beyond this are not sent. Current apps get each unique mesh once, "
+            "older apps get every instance as its own mesh"
+        ),
     )
     max_texture_size: bpy.props.EnumProperty(
         name="Texture Size",
@@ -314,6 +334,11 @@ class ViewARSession(bpy.types.PropertyGroup):
         name="Include Instances",
         default=True,
         description="Stream collection, particle and Geometry Nodes instances",
+    )
+    stream_lights: bpy.props.BoolProperty(
+        name="Stream Lights and Cameras",
+        default=True,
+        description="Send lights and cameras, so the app can light the model like Blender and show where cameras are",
     )
     paused: bpy.props.BoolProperty(
         name="Pause Updates",
@@ -489,6 +514,29 @@ class VIEWAR_OT_resync(bpy.types.Operator):
     def execute(self, context):
         if _state["streamer"] is not None:
             _state["streamer"].request_full_sync()
+        return {"FINISHED"}
+
+
+class VIEWAR_OT_send_snapshot(bpy.types.Operator):
+    bl_idname = "viewar.send_snapshot"
+    bl_label = "Send Snapshot"
+    bl_description = (
+        "Send what's streamed as a USDZ file, with full materials and textures, "
+        "to every connected device that can save one to its Library"
+    )
+
+    @classmethod
+    def poll(cls, context):
+        streamer = _state["streamer"]
+        return streamer is not None and bool(streamer.snapshot_clients) and not streamer.snapshot_busy
+
+    def execute(self, context):
+        streamer = _state["streamer"]
+        if streamer is None:
+            return {"CANCELLED"}
+        count = len(streamer.snapshot_clients)
+        streamer.request_snapshot()
+        self.report({"INFO"}, f"Sending a snapshot to {count} device{'s' if count != 1 else ''}")
         return {"FINISHED"}
 
 
@@ -1239,10 +1287,17 @@ class VIEWAR_PT_streaming(bpy.types.Panel):
                 col.label(text="Pick a collection to stream", icon="INFO")
         col.prop(session, "origin")
         col.prop(session, "include_instances")
+        col.prop(session, "stream_lights")
 
         obj = context.active_object
         if obj is not None:
             layout.prop(obj, "viewar_visible", text=f"Show {obj.name} in AR")
+
+        streamer = _state["streamer"]
+        if streamer is not None and streamer.clients:
+            layout.operator(VIEWAR_OT_send_snapshot.bl_idname, icon="EXPORT")
+            if streamer.snapshot_busy:
+                layout.label(text="Sending snapshot...", icon="TIME")
 
 
 class VIEWAR_PT_variants(bpy.types.Panel):
@@ -1588,6 +1643,8 @@ class VIEWAR_PT_stats(bpy.types.Panel):
         col = layout.column()
         col.label(text=f"Objects: {streamer.object_count}")
         col.label(text=f"Instances: {streamer.instance_count}")
+        if streamer.prototype_count:
+            col.label(text=f"Unique Instance Meshes: {streamer.prototype_count}")
         if streamer.instances_capped:
             col.label(text="Instance limit reached", icon="ERROR")
         col.label(text=f"Triangles: {streamer.triangle_count:,}")
@@ -1619,6 +1676,7 @@ classes = (
     VIEWAR_OT_stop,
     VIEWAR_OT_resync,
     VIEWAR_OT_copy_address,
+    VIEWAR_OT_send_snapshot,
     VIEWAR_OT_disconnect,
     VIEWAR_OT_answer_device,
     VIEWAR_OT_forget_device,

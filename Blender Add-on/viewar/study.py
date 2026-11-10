@@ -398,7 +398,7 @@ def write_all_task_times(folder):
 # ---------------------------------------------------------------- activity
 
 
-_APP_DETAIL_KEYS = ("set", "option", "object", "slot", "material", "question", "chosen", "text", "id")
+_APP_DETAIL_KEYS = ("set", "option", "object", "slot", "material", "question", "chosen", "text", "id", "camera")
 
 
 def log_app_message(message):

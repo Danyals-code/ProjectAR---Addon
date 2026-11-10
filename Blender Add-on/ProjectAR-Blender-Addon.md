@@ -32,15 +32,16 @@ Mesh, curve, surface, metaball and text objects that are visible in the current 
 
 ## 2. Folder layout
 
+Paths in this document are relative to the `Blender Add-on` folder of the repository.
+
 ```
-blender/
-└── viewar/
-    ├── blender_manifest.toml   # extension metadata and permissions
-    ├── __init__.py             # settings, panel, operators, handlers, timer
-    ├── server.py               # TCP server and frame encoding
-    ├── discovery.py            # optional Bonjour advertising
-    ├── scene_stream.py         # change tracking and mesh export
-    └── wheels/                 # optional zeroconf + ifaddr wheels
+viewar/
+├── blender_manifest.toml   # extension metadata and permissions
+├── __init__.py             # settings, panel, operators, handlers, timer
+├── server.py               # TCP server and frame encoding
+├── discovery.py            # optional Bonjour advertising
+├── scene_stream.py         # change tracking and mesh export
+└── wheels/                 # optional zeroconf + ifaddr wheels
 ```
 
 ---
@@ -88,7 +89,7 @@ UTF-8 JSON object with a `type` field.
 
 | type | Fields | Purpose |
 |---|---|---|
-| `hello` | `version` (int), `scene` (string), `unitScale` (float) | First message after connecting. `unitScale` is Blender's Unit Scale (Blender units to meters). |
+| `hello` | `version` (int), `scene` (string), `unitScale` (float) | First message after connecting. `unitScale` is the size of one scene unit in meters. The add-on sends everything in meters, so it is always 1 (see 4.4); older add-ons sent Blender's Unit Scale. |
 | `clear` | none | Remove everything. Always follows `hello`. |
 | `transforms` | `objects`: list of `{ "id": string, "m": [16 floats] }` | World matrices in RealityKit space, column-major. Only changed objects are sent. |
 | `remove` | `ids`: list of strings | Objects deleted or hidden in Blender. |
@@ -130,7 +131,16 @@ vertex_rk  = C * vertex_blender
 matrix_rk  = C * matrix_world_blender * C^-1
 ```
 
-Because vertices and matrices are converted with the same `C`, the app never has to know about Blender's axes. A useful side effect: Blender's Front view looks along +Y, so the "front" of a model faces -Y in Blender, which becomes +Z in RealityKit. The app rotates the scene so +Z points at the camera when you place it, meaning you see the front view first.
+Because vertices and matrices are converted with the same `C`, the app never has to know about Blender's axes.
+
+**Units.** Everything is sent in meters, whatever the scene's Unit Scale `k` (meters per Blender unit), and `hello.unitScale` is 1. The app's lights reach a fixed 20 units and its light brightness assumes meters, so a scene in millimeters sent as is would be lit as if it were a thousand times smaller. With `K` a uniform scale by `k`:
+
+```
+vertex_rk  = K * C * vertex_blender
+matrix_rk  = K * C * matrix_world_blender * C^-1 * K^-1     (translations in meters, no extra scale)
+```
+
+Light radii, area light sizes, camera clipping and orthographic scale are multiplied by `k`. Point, spot and area light energies are multiplied by `k²`: Blender's renders measure falloff in Blender units, so the same watts in meters keep the light looking as it does in Blender. Sun strength is per square meter and stays as it is. Positions and sizes from the app (notes, room scans, camera poses) are in meters and are turned back into Blender units; room scan boxes get their size in their mesh, not in an object scale. Snapshots keep using the USD exporter's own `metersPerUnit`. A useful side effect: Blender's Front view looks along +Y, so the "front" of a model faces -Y in Blender, which becomes +Z in RealityKit. The app rotates the scene so +Z points at the camera when you place it, meaning you see the front view first.
 
 ### 4.5 Object identity
 
@@ -932,7 +942,7 @@ def unregister():
 Check which Python your Blender uses (Scripting workspace, Python console: `import sys; sys.version`), then download wheels for that version:
 
 ```bash
-cd blender/viewar
+cd viewar
 mkdir -p wheels
 pip download zeroconf ifaddr --no-deps --only-binary=:all: \
     --python-version 3.11 -d ./wheels
@@ -945,8 +955,8 @@ If you skip this step entirely, everything still works. Users just type the IP s
 ## 7. Build and install
 
 ```bash
-blender --command extension validate --source-dir ./blender/viewar
-blender --command extension build --source-dir ./blender/viewar --output-dir ./dist
+blender --command extension validate --source-dir ./viewar
+blender --command extension build --source-dir ./viewar --output-dir ./dist
 ```
 
 Install the resulting zip via **Edit > Preferences > Get Extensions > (dropdown) Install from Disk**. The panel appears in the 3D Viewport sidebar (press **N**) under the **ProjectAR** tab.
@@ -1036,7 +1046,7 @@ The add-on uses Blender's Python API (`bpy`), so it is licensed **GPL-3.0-or-lat
 
 To publish on the Blender Extensions platform:
 
-1. Run `blender --command extension validate --source-dir ./blender/viewar` and fix any warnings.
+1. Run `blender --command extension validate --source-dir ./viewar` and fix any warnings.
 2. Read the platform's guidelines on naming, tags, and network access. The manifest already declares the `network` permission with a reason.
 3. The server only starts when the user presses Start Server, and only listens on the local network. It never contacts the internet.
 4. Bump `version` in the manifest for every release, and bump `PROTOCOL_VERSION` in `scene_stream.py` only when the wire format changes (the app warns users when versions differ).
@@ -1045,9 +1055,7 @@ To publish on the Blender Extensions platform:
 
 ## 13. Add-on roadmap
 
-1. **Textures.** Save base color, normal and roughness images to PNG in a temp folder and send them as blobs per material.
-2. **Instancing.** Iterate `depsgraph.object_instances` to support collection instances and Geometry Nodes instances, sending each unique mesh once plus instance matrices.
-3. **Pairing code.** Show a 4 digit code in the panel, require the app to send it after connecting, drop clients that don't.
-4. **USDZ snapshot.** A "Send Snapshot" button using Blender's USD exporter for full material fidelity when live updates aren't needed.
-5. **Delta meshes.** When topology is unchanged (sculpting, shape keys), send only vertex positions instead of the whole mesh.
-6. **Node tree updates.** Map shader node tree updates back to their owning material for more reliable material refreshes.
+Done: textures (1.3), approval of new devices (1.3), native instancing, USDZ snapshots, lights and cameras, and node tree updates mapped back to their materials (all 1.4). The 1.4 messages are specified in the app repository's developer guide, section 4.8.
+
+1. **Delta meshes.** When topology is unchanged (sculpting, shape keys), send only vertex positions instead of the whole mesh.
+2. **Animated scatters.** Instance transforms are sent one by one in `transforms`. A scatter whose parent moves resends every instance's matrix; sending them relative to the parent would save bandwidth.

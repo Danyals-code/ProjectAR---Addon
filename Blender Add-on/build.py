@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Package blender/viewar into dist/projectar-<version>.zip, ready for
-Edit > Preferences > Get Extensions > Install from Disk.
+"""Package viewar/ into dist/projectar-<version>.zip (both next to this
+script), ready for Edit > Preferences > Get Extensions > Install from Disk.
 
     python3 build.py          build the zip
     python3 build.py --hook   same, but reads an editor hook payload (JSON) on
                               stdin and only builds if the edited file is
-                              inside blender/viewar/
+                              inside viewar/
 """
 
 import json
@@ -16,7 +16,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SOURCE = ROOT / "blender" / "viewar"
+SOURCE = ROOT / "viewar"
 DIST = ROOT / "dist"
 
 

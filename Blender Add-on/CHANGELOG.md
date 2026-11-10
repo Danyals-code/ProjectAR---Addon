@@ -1,6 +1,41 @@
 # Changelog
 
-All notable changes to the ProjectAR Blender add-on, called ViewAR before 1.2.1. The add-on version is the `version` in `blender/viewar/blender_manifest.toml`. The wire protocol has its own version (`PROTOCOL_VERSION` in `scene_stream.py`).
+All notable changes to the ProjectAR Blender add-on, called ViewAR before 1.2.1. The add-on version is the `version` in `viewar/blender_manifest.toml`. The wire protocol has its own version (`PROTOCOL_VERSION` in `scene_stream.py`).
+
+## Unreleased
+
+### Changed
+- **Everything goes to the app in meters**, whatever the Unit Scale, and `hello.unitScale` is always 1. The app's lights reach a fixed 20 units and its brightness assumes meters, so scenes with a Unit Scale other than 1 (millimeters especially) were lit as if a thousand times smaller. Meshes are scaled to meters and matrices carry no extra scale. Light radii, area sizes, camera clipping and orthographic scale are in meters, and point, spot and area light energies are multiplied by Unit Scale², so lights look as they do in Blender's renders. Notes, room scans and camera poses from the app arrive in meters and land in Blender units; room scan boxes carry their size in the mesh, not an object scale. Scenes with a Unit Scale of 1 stream exactly as before.
+
+### Added
+- `tests/test_units.py`, run inside Blender with a fake app: a scene in millimeters reaches the app exactly as the same scene in meters, and changes from the app land in Blender units.
+
+## 1.4.0 — 2026-11-06
+
+Wire protocol stays at **v1**. New features are listed in `hello.features`. Messages older apps can't read, and the new kind 4 frame, go only to apps that list the matching feature in their `client` message, so older apps see no change. The messages are specified in the app repository's developer guide, section 4.8.
+
+### Added
+- **Materials from the app** (`materialDefinitions`). `setMaterial` can carry a whole look: a key, a name, an sRGB color with alpha, metallic and roughness. The add-on makes a Principled BSDF material for it once, remembers it by the key in the `projectar_material_key` custom property, and updates its values (and name) when the same look arrives edited. Alpha below 1 turns on blended transparency. Built-in looks and materials made in the app can now be applied in Blender. Every material info carries `key` when the material has one, so the app recognizes `Oak.001` as the Oak it sent.
+- **Material changes on instances.** A `setMaterial` for an instance id goes to the instance's source object.
+- **Material-only updates** (`materialUpdates`). When only a material changed, apps that list the feature get `objectMaterials` with the new slot materials instead of the whole mesh. If the number of slots changed, the mesh goes as before.
+- **Native instancing** (`instancing`). Apps that list it get one prototype mesh (id `~mesh/<n>`, header `"prototype": true`) per unique instanced geometry, plus `instances` entries that point each instance at its prototype and name its source object. Unused prototypes are removed. A 2,000-instance scatter now sends about 10 KB of mesh data instead of about 18 MB. Older apps still get one mesh per instance, and both kinds of app can be connected at once.
+- **Lights and cameras** (`lights`, `cameras`). Point, spot, sun and area lights (color, energy, radius, cone, size, shadow, matrix) and cameras (active, vertical field of view for the render resolution, aspect, clipping, matrix) are sent after the full sync and whenever they change. **Stream Lights and Cameras** in the Streaming sub-panel turns this off.
+- **Camera from the device** (`setCamera`). The app can move a camera to the device's pose. Its scale, lens and sensor are kept. Without a camera to move, *ProjectAR Camera* is made and becomes the scene camera if there is none.
+- **USDZ snapshots** (`snapshot`). `requestSnapshot` from the app, or **Send Snapshot** in the Streaming sub-panel, exports what's streamed with Blender's USD exporter (viewport geometry, UsdPreviewSurface materials with textures, Y up, realized instances, no lights or cameras) and sends it in kind 4 frames of at most 1 MB, a few megabytes per tick. The selection is restored afterwards. A Unit Scale other than 1 goes into the stage's `metersPerUnit`. Failures send `snapshotFailed` with `tooLarge` (over 256 MB), `exportFailed` or `nothingToExport`. One snapshot is in progress per device at a time.
+- *Unique Instance Meshes* in Statistics.
+
+### Changed
+- Materials are read from the Principled BSDF that feeds the active Material Output, following reroutes, node groups (inputs included) and the first shader of a Mix or Add Shader, instead of the first Principled BSDF in the tree. Base Color, Metallic, Roughness and Alpha fed by an RGB or Value node use that node's value instead of the viewport color.
+- **Max Instances** defaults to 2000, up from 500.
+- A new device waits up to 2 s for the app's `client` message before getting the scene, also when Ask Before Devices Connect is off, since what it's sent depends on what it can read. A device whose features change gets a full resync.
+
+### Fixed
+- Editing a node group used by a material didn't update devices.
+- Material changes Blender doesn't report to add-ons (undo, drivers, some node group edits, a material assigned to an instance source's slot) are now caught by a check of every streamed material once a second. Undo and redo also trigger that check at once.
+
+### Tested
+- Blender 5.2 headless over real TCP connections, with one fake app listing the new features and one acting as an older app at the same time: 62 checks covering every new message, ordering (objects, prototypes, instances, transforms), definitions (creating, reusing, updating, renaming, transparency, name clashes, bad input), the instance-id fallback, `objectMaterials` against the mesh fallback, node group edits, the once-a-second check with the depsgraph handler removed, Mix Shader and RGB/Value reading, prototype rebuilds and removal, light and camera change detection, `setCamera` axes (identity looks along +Y with +Z up), snapshots reassembled into a Y-up USDZ opened with USD, failures, old apps never seeing prototypes or snapshots, feature changes, and pause and resume.
+- 8 more: 2,000 instances as one prototype, idle tick time, area lights, 3,000 fuzzed messages of the new types, at most one snapshot queued per device, and panel drawing. 10 regression checks of variants, hidden variant streaming, textures, `setVariant` and decisions for both kinds of app.
 
 ## 1.3.0 — 2026-10-24
 

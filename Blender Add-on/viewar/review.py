@@ -28,6 +28,8 @@ import uuid
 import bpy
 from mathutils import Matrix, Vector
 
+from . import extras, materials
+
 # Blender (x, y, z) -> RealityKit (x, z, -y), as in scene_stream.
 AXIS = Matrix(((1, 0, 0, 0), (0, 0, 1, 0), (0, -1, 0, 0), (0, 0, 0, 1)))
 
@@ -690,9 +692,11 @@ def add_room_scan(scene, message, space):
     """Builds a room scan from the app as named boxes in a new collection.
 
     Each item has a kind, a RealityKit-space transform (rotation and
-    translation in scene units) and dimensions (width, height, depth) in
-    scene units. Floors may carry polygon corners in their local space.
-    Scan objects are kept out of AR, since the real room is already there.
+    translation in meters, the scene units the add-on gives the app) and
+    dimensions (width, height, depth) in meters. Floors may carry polygon
+    corners in their local space. Boxes are made in Blender units, without
+    any object scale. Scan objects are kept out of AR, since the real room
+    is already there.
     """
     items = message.get("items")
     if not isinstance(items, list) or not items:
@@ -702,6 +706,10 @@ def add_room_scan(scene, message, space):
     subs = {}
     counts = {}
     space_inv = space.inverted_safe()
+    unit = extras.meters(scene)
+    # space_inv scales meters into Blender units; this undoes that for the
+    # object's own matrix, so the box's size carries it instead.
+    to_blender = Matrix.Scale(unit, 4)
     for item in items[:MAX_SCAN_ITEMS]:
         if not isinstance(item, dict):
             continue
@@ -714,7 +722,7 @@ def add_room_scan(scene, message, space):
             continue
         try:
             m_rk = _matrix(finite_floats(transform, 16))
-            width, height, depth = (min(abs(v), MAX_SCAN_SIZE) for v in finite_floats(dims, 3))
+            width, height, depth = (min(abs(v), MAX_SCAN_SIZE) / unit for v in finite_floats(dims, 3))
         except ValueError:
             continue
         if root is None:
@@ -730,7 +738,8 @@ def add_room_scan(scene, message, space):
         corners = item.get("polygon")
         if kind == "floor" and isinstance(corners, list) and len(corners) >= 3:
             try:
-                mesh = _polygon_mesh(name, [finite_floats(c[:3] if isinstance(c, list) else c, 3) for c in corners[:256]])
+                mesh = _polygon_mesh(name, [[v / unit for v in finite_floats(c[:3] if isinstance(c, list) else c, 3)]
+                                            for c in corners[:256]])
             except (TypeError, ValueError, IndexError):
                 mesh = _box_mesh(name, (width, depth, height))
         else:
@@ -738,7 +747,7 @@ def add_room_scan(scene, message, space):
             mesh = _box_mesh(name, (width, depth, height))
         mesh.materials.append(_scan_material(mat_name, color))
         obj = bpy.data.objects.new(name, mesh)
-        obj.matrix_world = space_inv @ m_rk @ AXIS
+        obj.matrix_world = space_inv @ m_rk @ AXIS @ to_blender
         obj.viewar_visible = False
         obj["viewar_scan_kind"] = kind
         if kind == "object":
@@ -762,25 +771,56 @@ def _find_object(name):
     return next((o for o in bpy.data.objects if o.name_full == name), None)
 
 
+def _material_target(name):
+    """The object a material change goes to. For an instance id
+    ("parent/source#n") that's the source object, which changes every
+    instance of it. Names can contain "/" themselves, so every split is tried."""
+    obj = _find_object(name)
+    if obj is not None or "#" not in name:
+        return obj
+    head = name.rsplit("#", 1)[0]
+    for i, ch in enumerate(head):
+        if ch == "/" and _find_object(head[:i]) is not None:
+            source = _find_object(head[i + 1 :])
+            if source is not None:
+                return source
+    return None
+
+
+def _set_material(message):
+    obj = _material_target(str(message.get("object", "")))
+    slot = _int(message.get("slot"))
+    if obj is None or slot is None:
+        return False
+    if not 0 <= slot < len(obj.material_slots) or obj.library is not None:
+        return False
+    # A slot linked to the mesh can't change when the mesh comes from a library.
+    if obj.material_slots[slot].link == "DATA" and obj.data is not None and obj.data.library is not None:
+        return False
+    changed = False
+    if "definition" in message:
+        definition = materials.parse_definition(message.get("definition"))
+        if definition is None:
+            return False
+        mat, changed = materials.ensure_app_material(definition)
+    else:
+        mat = bpy.data.materials.get(str(message.get("material", "")))
+        if mat is None:
+            return False
+    if obj.material_slots[slot].material != mat:
+        obj.material_slots[slot].material = mat
+        changed = True
+    return changed
+
+
 def handle_message(message, scene, view_layer, space):
     """Applies one message from the app. Unknown types are ignored, so newer
     apps work with this add-on. Returns True if the scene was changed."""
     kind = message.get("type")
     if kind == "setMaterial":
-        obj = _find_object(str(message.get("object", "")))
-        mat = bpy.data.materials.get(str(message.get("material", "")))
-        slot = _int(message.get("slot"))
-        if obj is None or mat is None or slot is None:
-            return False
-        if not 0 <= slot < len(obj.material_slots) or obj.library is not None:
-            return False
-        # A slot linked to the mesh can't change when the mesh comes from a library.
-        if obj.material_slots[slot].link == "DATA" and obj.data is not None and obj.data.library is not None:
-            return False
-        if obj.material_slots[slot].material == mat:
-            return False
-        obj.material_slots[slot].material = mat
-        return True
+        return _set_material(message)
+    if kind == "setCamera":
+        return extras.set_camera(scene, message, space)
     if kind == "setVariant":
         return apply_variant(view_layer, text(message.get("set", ""), 255), text(message.get("option", ""), 255))
     if kind == "addNote":

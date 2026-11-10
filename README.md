@@ -4,35 +4,41 @@ Live preview your Blender scene in augmented reality on iPhone and iPad.
 
 The add-on runs a small server inside Blender and streams the open scene over your local network to the **ProjectAR** iOS app. Move an object, add a modifier or tweak a material, and the AR view updates within a fraction of a second.
 
-> The full technical specification (architecture, wire protocol, source walkthrough) is in [ProjectAR-Blender-Addon.md](ProjectAR-Blender-Addon.md).
+> The full technical specification (architecture, wire protocol, source walkthrough) is in [ProjectAR-Blender-Addon.md](Blender%20Add-on/ProjectAR-Blender-Addon.md).
+>
+> For Rhino 8, see [ProjectAR for Rhino](Rhino%20Add-on/README.md): the same app and protocol, from Rhino.
 
 ---
 
 ## Features
 
-- **Live streaming.** Object transforms are sent at up to 60 updates per second. Meshes are re-sent when their geometry or materials change (at most 10 times per second per object).
+- **Live streaming.** Object transforms are sent at up to 60 updates per second. Meshes are re-sent when their geometry changes (at most 10 times per second per object). When only a material changes, current apps get just the new material values, not the whole mesh.
 - **Only changes go over the network.** A full scene is sent only when a device connects, when you open another .blend file, change the Unit Scale or switch scenes, or when you press **Resync**.
 - **Modifiers applied.** What you see in the viewport (evaluated geometry) is what you get in AR.
-- **Instances.** Collection instances, particle instances and Geometry Nodes instances (scattering, arrays of objects) are streamed, up to a limit you set.
+- **Instances.** Collection instances, particle instances and Geometry Nodes instances (scattering, arrays of objects) are streamed, up to a limit you set. Current apps get each unique mesh once and a small entry per instance, so a scatter of 2,000 pebbles costs one pebble's worth of mesh data. Older apps get every instance as its own mesh.
 - **Choose what to stream.** Everything visible, only the selection, or one collection, and any object can be kept out of AR with **Show in AR**.
 - **AR origin.** Use the world origin or the 3D cursor as the point that lands where you tap, so models far from the origin are easy to place.
 - **Pause updates** while you make heavy edits. Devices catch up when you resume.
-- **Materials and textures.** Base Color, Metallic, Roughness and Alpha from the Principled BSDF, plus image textures on those inputs and on Normal (through a Normal Map node). Painted textures update on the device once you pause.
+- **Materials and textures.** Base Color, Metallic, Roughness and Alpha from the Principled BSDF that feeds the Material Output (through reroutes, node groups and Mix or Add Shaders), including values from RGB and Value nodes, plus image textures on those inputs and on Normal (through a Normal Map node). Painted textures update on the device once you pause. Every streamed material is also checked once a second, so changes Blender doesn't report (undo, drivers, some node group edits) still arrive.
 - **Automatic discovery.** Blender appears in the app under *Nearby* via Bonjour (mDNS), on every network interface. You can also enter or paste the IP manually.
 - **Multiple devices.** Several phones can connect at once, a phone that joins late receives the whole scene, and you can see how much data each device received or disconnect it.
 - **Remembers your settings.** Port, update rate and limits are kept in Blender's preferences, and the server can start automatically with Blender.
 - **Protects slower phones.** Per-object triangle and instance budgets, plus automatic resync for devices that fall behind.
 - **Design variants.** Mark a collection as an AR Variant Set and each child collection becomes a design option. Switch options in the app (instantly, since every option is streamed) or in the panel, and the other side follows.
 - **Notes from AR.** Notes left on the model in the app arrive as empties in a *ProjectAR Notes* collection, with the text shown in the viewport. Edit or delete them here, or add your own at the 3D cursor, and every connected device updates.
-- **Material try-on.** Materials picked in the app with *Also Apply in Blender* are assigned to the object's slot here.
+- **Material try-on.** Materials picked in the app with *Also Apply in Blender* are assigned to the object's slot here. Built-in looks and materials made in the app arrive as new Principled BSDF materials, made once and updated when you edit the look in the app. Picking a material on an instance changes its source object.
+- **Any Unit Scale.** Everything goes to the app in meters, so a scene modeled in millimeters lands at real size, and its lights reach as far and shine as brightly as in Blender's renders.
+- **Lights and cameras.** Lights (point, spot, sun and area) and cameras are sent to the app, so it can light the model like your scene and show where your cameras are. Turn this off with **Stream Lights and Cameras**.
+- **Camera from the phone.** The app can move a camera to where the phone is, so you frame a render by walking around the model. Without a scene camera, a *ProjectAR Camera* is made.
+- **USDZ snapshots.** **Send Snapshot** (or the app) exports what's streamed as a USDZ file, with full materials and textures, and the app saves it to its Library.
 - **Room scans.** Scan a room in the app (LiDAR iPhone or iPad) and send it here as named boxes (Wall 1, Door 1, Table 1…) in a *Room Scan* collection. With your scene placed at real size, the room lands exactly where it is around your model. Scan objects are kept out of AR.
 - **Decisions.** Decisions made in the room with the app arrive with their photo, options, criteria and reason. Record your own at the screen with **Record Decision**, with an image of the 3D view. Both go in one log, marked by where they were made, and export to CSV for studies.
 - **Study sessions at the screen.** For comparing Blender alone with AR: the same tasks, counterbalanced orders and task timer as the app's Study Mode, plus a log of what the participant does in Blender (editing objects and materials, switching variants, decisions, notes, navigating the 3D view, undo, saving). CSV columns match the app's exports.
 
 **Streamed:** mesh, curve, surface, metaball and text objects (and instances of them) that are visible in the current view layer, with per-corner normals and the active UV map.
-**Not yet streamed:** lights and cameras (see the [roadmap](#roadmap)).
+**Also streamed:** lights and cameras, as descriptions rather than geometry.
 
-The add-on still speaks wire protocol v1. Variants, notes, material try-on and room scans need ProjectAR app 1.2 or later; older apps simply don't use them.
+The add-on still speaks wire protocol v1. Variants, notes, material try-on and room scans need ProjectAR app 1.2 or later; app materials, instancing, material updates, lights, cameras and snapshots need app 1.4 or later. Older apps simply don't use them.
 
 ---
 
@@ -53,7 +59,7 @@ No extra Python packages need to be installed. The Bonjour libraries are bundled
 
 ### From the ready-made zip
 
-1. Take `dist/projectar-<version>.zip` from this repository (or build it yourself, see below).
+1. Take `Blender Add-on/dist/projectar-<version>.zip` from this repository (or build it yourself, see below).
 2. In Blender go to **Edit › Preferences › Get Extensions**.
 3. Open the **⌄** dropdown in the top right and choose **Install from Disk…**.
 4. Select the zip. ProjectAR is enabled automatically.
@@ -63,19 +69,19 @@ No extra Python packages need to be installed. The Bonjour libraries are bundled
 The quickest way needs only Python 3:
 
 ```bash
-python3 build.py
+python3 "Blender Add-on/build.py"
 ```
 
-This writes `dist/projectar-<version>.zip`, taking the version from `blender_manifest.toml`, and deletes older zips.
+This writes `Blender Add-on/dist/projectar-<version>.zip`, taking the version from `blender_manifest.toml`, and deletes older zips.
 
 To also validate the manifest, use Blender's own tooling (Blender must be on your `PATH`):
 
 ```bash
-blender --command extension validate ./blender/viewar
+blender --command extension validate "./Blender Add-on/viewar"
 ```
 
 ```bash
-blender --command extension build --source-dir ./blender/viewar --output-dir ./dist
+blender --command extension build --source-dir "./Blender Add-on/viewar" --output-dir "./Blender Add-on/dist"
 ```
 
 On macOS the Blender binary is at `/Applications/Blender.app/Contents/MacOS/Blender`.
@@ -103,7 +109,9 @@ The first time a device connects, a popup says it's asking, and the top of the P
 |---|---|
 | **Visible Objects / Selected Objects / Collection** | What to send. *Selected* is handy for checking one asset; *Collection* streams a single collection you pick. |
 | **AR Origin** | *World Origin*, or *3D Cursor* so a model far from the origin still lands where you tap (**Shift+S › Cursor to Selected** first). |
-| **Include Instances** | Stream collection, particle and Geometry Nodes instances. Each instance is sent as its own mesh, so very large scatters are capped by **Max Instances**. |
+| **Include Instances** | Stream collection, particle and Geometry Nodes instances, up to **Max Instances**. Current apps get each unique mesh once; older apps get each instance as its own mesh. |
+| **Stream Lights and Cameras** | Send lights and cameras to the app. |
+| **Send Snapshot** | Sends what's streamed as a USDZ file, with full materials and textures, to every connected device that can save one. Shown once a device is connected. |
 | **Show *object* in AR** | Keeps the active object out of AR while it stays visible in Blender, for example reference planes or helper meshes. **Alt+click** changes all selected objects. This setting is saved with the .blend file. |
 
 These options last for the session and are not saved into your .blend files.
@@ -150,7 +158,7 @@ These are also under **Edit › Preferences › Add-ons › ProjectAR**, and Ble
 | **Port** | `51515` | Can only be changed while the server is stopped. |
 | **Updates per Second** | `30` | Lower it to 15–20 for heavy animated scenes. |
 | **Max Triangles per Object** | `300,000` | Objects above this are skipped. Changing it applies immediately. |
-| **Max Instances** | `500` | Instances beyond this are not sent. |
+| **Max Instances** | `2000` | Instances beyond this are not sent. |
 | **Start Server with Blender** | off | Starts streaming automatically whenever Blender opens. |
 
 ### Tips for smooth results on older iPhones
@@ -198,19 +206,21 @@ The most recent error is shown at the top of the ProjectAR panel. Full traceback
 ```
 .
 ├── README.md
-├── CHANGELOG.md
-├── ProjectAR-Blender-Addon.md   # full specification and wire protocol
-├── build.py                     # packages the add-on into dist/
-├── dist/
-│   └── projectar-<version>.zip  # ready to install
-└── blender/
-    └── viewar/
-        ├── blender_manifest.toml   # extension metadata, permissions, wheels
-        ├── __init__.py             # preferences, panels, operators, handlers, timer
-        ├── server.py               # threaded TCP server and frame encoding
-        ├── discovery.py            # network addresses and Bonjour (_viewar._tcp) advertising
-        ├── scene_stream.py         # change tracking, filtering, instances and mesh export
-        └── wheels/                 # zeroconf, ifaddr, async_timeout (pure Python)
+├── Blender Add-on/
+│   ├── CHANGELOG.md
+│   ├── ProjectAR-Blender-Addon.md   # full specification and wire protocol
+│   ├── build.py                     # packages the add-on into dist/
+│   ├── dist/
+│   │   └── projectar-<version>.zip  # ready to install
+│   ├── viewar/
+│   │   ├── blender_manifest.toml   # extension metadata, permissions, wheels
+│   │   ├── __init__.py             # preferences, panels, operators, handlers, timer
+│   │   ├── server.py               # threaded TCP server and frame encoding
+│   │   ├── discovery.py            # network addresses and Bonjour (_viewar._tcp) advertising
+│   │   ├── scene_stream.py         # change tracking, filtering, instances and mesh export
+│   │   └── wheels/                 # zeroconf, ifaddr, async_timeout (pure Python)
+│   └── tests/                      # run inside Blender, see test_units.py
+└── Rhino Add-on/                    # ProjectAR for Rhino 8, see its README
 ```
 
 ### How it works
@@ -229,14 +239,14 @@ Instances come from `depsgraph.object_instances`. Protocol v1 has no instancing,
 
 ### Wire protocol (v1), in short
 
-Each frame has a 4-byte big-endian length, a 1-byte kind (`1` = JSON, `2` = binary mesh), then the payload. JSON messages are `hello`, `clear`, `transforms`, `remove`, `ping`, `variants` and `notes`. Since 1.2 the app can also send `setMaterial`, `setVariant`, `addNote`, `removeNote` and `addRoomScan`, and since 1.3 `addDecision` and `removeDecision`, which the add-on announces in `hello.features`. Mesh payloads carry little-endian positions, normals, optional UVs, triangle indices and per-triangle material indices, already converted to RealityKit's Y-up space. Full details are in section 4 of the [specification](ProjectAR-Blender-Addon.md#4-wire-protocol-version-1).
+Each frame has a 4-byte big-endian length, a 1-byte kind (`1` = JSON, `2` = binary mesh), then the payload. JSON messages are `hello`, `clear`, `transforms`, `remove`, `ping`, `variants` and `notes`. Since 1.2 the app can also send `setMaterial`, `setVariant`, `addNote`, `removeNote` and `addRoomScan`, and since 1.3 `addDecision` and `removeDecision`, which the add-on announces in `hello.features`. Mesh payloads carry little-endian positions, normals, optional UVs, triangle indices and per-triangle material indices, already converted to RealityKit's Y-up space. Full details are in section 4 of the [specification](Blender%20Add-on/ProjectAR-Blender-Addon.md#4-wire-protocol-version-1).
 
 ### Updating the discovery wheels
 
 The bundled `zeroconf 0.39.4` is the newest release published as a pure Python (`py3-none-any`) wheel, so one file works on every OS. Newer zeroconf releases only ship platform-specific wheels. If you upgrade, download one wheel per platform and list them all in `blender_manifest.toml`:
 
 ```bash
-pip download zeroconf ifaddr async-timeout --no-deps --only-binary=:all: --python-version 3.11 -d blender/viewar/wheels
+pip download zeroconf ifaddr async-timeout --no-deps --only-binary=:all: --python-version 3.11 -d "Blender Add-on/viewar/wheels"
 ```
 
 If you remove the wheels entirely, the add-on still works and users type the IP manually.
@@ -247,12 +257,8 @@ If you remove the wheels entirely, the add-on still works and users type the IP 
 
 These need a protocol update in the iOS app as well:
 
-1. Image textures (base color, normal, roughness)
-2. Native instancing (send each shared mesh once plus instance matrices, instead of one mesh per instance)
-3. Pairing code for connections (more important now that the app can change the scene)
-4. One-shot USDZ snapshot for full material fidelity
-5. Delta meshes (send only positions when topology is unchanged)
-6. Lights and cameras
+1. Delta meshes (send only positions when topology is unchanged)
+2. Animated scatters: send instance transforms relative to their parent, so moving a scatter doesn't resend every instance's matrix
 
 ---
 
